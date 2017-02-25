@@ -1,5 +1,5 @@
 # SparkGST
-Construction of generalized suffix tree in Spark.
+Parallel construction of generalized suffix tree in Spark.
 
 ###Compile
 ```
