@@ -1,13 +1,13 @@
 # SparkGST
 Parallel construction of generalized suffix tree in Spark.
 
-###Compile
+### Compile
 ```
 git clone https://github.com/shad0w-walker233/SparkGST.git
 cd SparkGST
 sbt package
 ```
-###Execute
+### Execute
 ```
 ${SPARK_HOME/bin}/spark-submit \
 --master <spark cluster master uri> \
@@ -21,7 +21,7 @@ hdfs://output path \
 hdfs://temp path
 ```
 
-###Algorithm
+### Algorithm
 1. Read all the files under the input path.
 2. Map Stage: For each suffix, generate a node linking to root node with the key of the first character.
 3. Reduce Stage: Combine trees to generate the subtree of the GST by key.
