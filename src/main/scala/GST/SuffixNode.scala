@@ -4,20 +4,20 @@ import scala.util.control.Breaks._
 import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.broadcast.Broadcast
 
-class SuffixNode (var startChar:String,
-                  var start:Int, var end:Int,
-                  val broadcastText:Broadcast[Array[(String, String)]]
-                 ) extends Serializable{
+class SuffixNode (var startChar: Int,
+                  var start: Int, var end: Int,
+                  val bcText: Broadcast[Array[(Int, Int, Int)]]
+                 ) extends java.io.Serializable{
   var children = new ArrayBuffer[SuffixNode]()
-  var terminal:String = ""
+  var terminal:(Int, Int) = (-1,-1)
 
   def len(): Int ={
     end - start + 1
   }
 
   //Get the first character of the node
-  def calStartChar(): String ={
-    startChar = broadcastText.value(start)._1
+  def calStartChar(): Int ={
+    startChar = bcText.value(start)._1
     startChar
   }
 
@@ -25,7 +25,7 @@ class SuffixNode (var startChar:String,
   def compareSuffix(link:SuffixNode): Int = {
     val Len = if(len < link.len) len() else link.len()
     for(i <- 1 to Len) {
-      if(broadcastText.value(start+i-1)._1 != broadcastText.value(link.start+i-1)._1){
+      if(bcText.value(start+i-1)._1 != bcText.value(link.start+i-1)._1){
         return i-1
       }
     }
@@ -34,8 +34,8 @@ class SuffixNode (var startChar:String,
 
   //Combine a Suffixtree 'tree' to this
   def combineSuffixTree(tree:SuffixNode): SuffixNode = {
-    for (child2 <- tree.children) {
-      breakable {
+    breakable {
+      for (child2 <- tree.children) {
         var hasChar = false
         for (child1 <- children) {
           if (child1.startChar == child2.startChar) {
@@ -48,32 +48,44 @@ class SuffixNode (var startChar:String,
             }
             //child1 is on the link between this and child2
             else if (sharedLen == child1.len) {
-              val node = new SuffixNode(child1.startChar, child1.start, child1.end, broadcastText)
+              tree.startChar = child1.startChar
+              tree.start = child1.start
+              tree.end = child1.end
+              tree.children.clear()
+
               child2.start += sharedLen
               child2.calStartChar()
-              node.children += child2
-              child1.combineSuffixTree(node)
+              tree.children += child2
+              child1.combineSuffixTree(tree)
             }
             //child2 is on the link between this and child1
             else if (sharedLen == child2.len) {
-              val node = new SuffixNode(child2.startChar, child2.start, child2.end, broadcastText)
+              tree.startChar = child2.startChar
+              tree.start = child2.start
+              tree.end = child2.end
+              tree.children.clear()
+
               child1.start += sharedLen
               child1.calStartChar()
-              node.children += child1
-              child2.combineSuffixTree(node)
+              tree.children += child1
+              child2.combineSuffixTree(tree)
               children -= child1
               children += child2
             }
             //this forks to child1 and child2
             else {
-              val node = new SuffixNode(child1.startChar, child1.start, child1.start + sharedLen - 1, broadcastText)
-              node.children = ArrayBuffer(child1, child2)
+              tree.startChar = child1.startChar
+              tree.start = child1.start
+              tree.end = child1.start + sharedLen - 1
+              tree.children.clear()
+
+              tree.children = ArrayBuffer(child1, child2)
               child1.start += sharedLen
               child2.start += sharedLen
               child1.calStartChar()
               child2.calStartChar()
               children -= child1
-              children += node
+              children += tree
             }
             break
           }
@@ -94,9 +106,9 @@ class SuffixNode (var startChar:String,
   }
 
   //Get terminal characters of the whole tree
-  def output(deep:Int, res:ArrayBuffer[String]): Unit ={
-    if(terminal.nonEmpty){
-      res += deep+" "+terminal
+  def output(deep:Int, res:ArrayBuffer[(Int, Int, Int)]): Unit ={
+    if(terminal._1 != -1){
+      res += ((deep, terminal._1, terminal._2))
     }
     children.foreach(_.output(deep+1, res))
   }
