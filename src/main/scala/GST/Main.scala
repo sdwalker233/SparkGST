@@ -9,7 +9,14 @@ object Main {
     val conf = new SparkConf()
       .setAppName("GST")
       .set("spark.driver.maxResultSize", "4G")
+      .set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      .set("spark.kryoserializer.buffer","256m")
       //.setMaster("local[4]") //local
+    conf.registerKryoClasses(Array(
+      classOf[GST.SuffixNode],
+      classOf[scala.collection.mutable.ArrayBuffer[SuffixNode]],
+      classOf[scala.Array[(Int, Int, Int)]]
+    ))
 
     val sc = new SparkContext(conf)
     val sumCores = conf.getInt("spark.executor.cores", 8) * conf.getInt("spark.executor.instances", 8)
@@ -42,11 +49,11 @@ object Main {
       } ++ Array((-fileId, fileId, -1))
       //Add a terminal character which is "-fileId" to each file
     }
+    filesRDD.unpersist()
 
     //Create the Broadcast variable of text contents
     val bcText = sc.broadcast(S.collect())
     val charNum = bcText.value.length
-    //println(charNum)
     
     /** Construct the Generalized Suffix Tree
       * First filter the suffixes starting with terminal character
