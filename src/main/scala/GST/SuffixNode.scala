@@ -34,8 +34,8 @@ class SuffixNode (var startChar: Int,
 
   //Combine a Suffixtree 'tree' to this
   def combineSuffixTree(tree:SuffixNode): SuffixNode = {
-    breakable {
-      for (child2 <- tree.children) {
+    for (child2 <- tree.children) {
+      breakable {
         var hasChar = false
         for (child1 <- children) {
           if (child1.startChar == child2.startChar) {
@@ -48,44 +48,32 @@ class SuffixNode (var startChar: Int,
             }
             //child1 is on the link between this and child2
             else if (sharedLen == child1.len) {
-              tree.startChar = child1.startChar
-              tree.start = child1.start
-              tree.end = child1.end
-              tree.children.clear()
-
+              val node = new SuffixNode(child1.startChar, child1.start, child1.end, bcText)
               child2.start += sharedLen
               child2.calStartChar()
-              tree.children += child2
-              child1.combineSuffixTree(tree)
+              node.children += child2
+              child1.combineSuffixTree(node)
             }
             //child2 is on the link between this and child1
             else if (sharedLen == child2.len) {
-              tree.startChar = child2.startChar
-              tree.start = child2.start
-              tree.end = child2.end
-              tree.children.clear()
-
+              val node = new SuffixNode(child2.startChar, child2.start, child2.end, bcText)
               child1.start += sharedLen
               child1.calStartChar()
-              tree.children += child1
-              child2.combineSuffixTree(tree)
+              node.children += child1
+              child2.combineSuffixTree(node)
               children -= child1
               children += child2
             }
             //this forks to child1 and child2
             else {
-              tree.startChar = child1.startChar
-              tree.start = child1.start
-              tree.end = child1.start + sharedLen - 1
-              tree.children.clear()
-
-              tree.children = ArrayBuffer(child1, child2)
+              val node = new SuffixNode(child1.startChar, child1.start, child1.start + sharedLen - 1, bcText)
+              node.children = ArrayBuffer(child1, child2)
               child1.start += sharedLen
               child2.start += sharedLen
               child1.calStartChar()
               child2.calStartChar()
               children -= child1
-              children += tree
+              children += node
             }
             break
           }

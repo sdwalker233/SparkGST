@@ -76,7 +76,7 @@ object Main {
       root.output(0, resultOfSubTree)
       resultOfSubTree
     }.map { case (deep, fileId, terminalPosition) =>
-      deep + " " + bcFilename.value(fileId) + "$" + terminalPosition
+      deep + " " + bcFilename.value(fileId) + ":" + terminalPosition
     }
 
     //Output the result
