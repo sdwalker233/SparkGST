@@ -15,7 +15,7 @@ object Main {
     conf.registerKryoClasses(Array(
       classOf[GST.SuffixNode],
       classOf[scala.collection.mutable.ArrayBuffer[SuffixNode]],
-      classOf[scala.Array[(Int, Int, Int)]]
+      classOf[scala.Array[(Int, Int)]]
     ))
 
     val sc = new SparkContext(conf)
@@ -33,6 +33,8 @@ object Main {
     if (filesRDD.partitions.length < sumCores) filesRDD = filesRDD.repartition(sumCores * taskMul)
     filesRDD.persist()
 
+    //Get max length of all the textfiles
+    val max_len = filesRDD.map(_._2.length).reduce(math.max(_, _))
     //Get filenames and make it a broadcast variable
     val filenamesRDD = filesRDD.map(_._1.replaceFirst(inputPath, ""))
     val bcFilename = sc.broadcast(filenamesRDD.collect())
@@ -45,8 +47,9 @@ object Main {
       val fileId = bcFilenameMap.value(filename)
       val content = filePair._2.replaceAll("\n", "")
       content.zipWithIndex.map { charPair =>
-        (charPair._1.toInt, fileId, charPair._2)
-      } ++ Array((-fileId, fileId, -1))
+        //Compress (fileId, terminalPosition) to terminalInfo:Int
+        (charPair._1.toInt, fileId * max_len + charPair._2)
+      } ++ Array((-fileId, -fileId))
       //Add a terminal character which is "-fileId" to each file
     }
     filesRDD.unpersist()
@@ -54,7 +57,7 @@ object Main {
     //Create the Broadcast variable of text contents
     val bcText = sc.broadcast(S.collect())
     val charNum = bcText.value.length
-    
+
     /** Construct the Generalized Suffix Tree
       * First filter the suffixes starting with terminal character
       * Then map the suffixes to a link(root to this suffix, also a tree) with key of the first characters
@@ -65,17 +68,20 @@ object Main {
       .map { i =>
         val root = new SuffixNode(-charNum, -1, -1, bcText)
         val node = new SuffixNode(bcText.value(i)._1, i, charNum - 1, bcText)
-        node.terminal = (bcText.value(i)._2, bcText.value(i)._3)
+        node.terminalInfo = bcText.value(i)._2
         root.children += node
         (bcText.value(i)._1, root)
       }.reduceByKey(partitioner, _.combineSuffixTree(_))
 
     //Get all the terminal characters of suffix trees by key(start character)
     val resRDD = SuffixTree.flatMap { case (_, root) =>
-      val resultOfSubTree = new ArrayBuffer[(Int, Int, Int)]()
+      val resultOfSubTree = new ArrayBuffer[(Int, Int)]()
       root.output(0, resultOfSubTree)
       resultOfSubTree
-    }.map { case (deep, fileId, terminalPosition) =>
+    }.map { case (deep, terminalInfo) =>
+      //Extract terminalInfo:Int to (fileId, terminalPosition)
+      val fileId = terminalInfo / max_len
+      val terminalPosition = terminalInfo % max_len
       deep + " " + bcFilename.value(fileId) + ":" + terminalPosition
     }
 

@@ -6,10 +6,10 @@ import org.apache.spark.broadcast.Broadcast
 
 class SuffixNode (var startChar: Int,
                   var start: Int, var end: Int,
-                  val bcText: Broadcast[Array[(Int, Int, Int)]]
+                  val bcText: Broadcast[Array[(Int, Int)]]
                  ) extends java.io.Serializable{
   var children = new ArrayBuffer[SuffixNode]()
-  var terminal:(Int, Int) = (-1,-1)
+  var terminalInfo: Int = -1
 
   def len(): Int ={
     end - start + 1
@@ -94,9 +94,9 @@ class SuffixNode (var startChar: Int,
   }
 
   //Get terminal characters of the whole tree
-  def output(deep:Int, res:ArrayBuffer[(Int, Int, Int)]): Unit ={
-    if(terminal._1 != -1){
-      res += ((deep, terminal._1, terminal._2))
+  def output(deep:Int, res:ArrayBuffer[(Int, Int)]): Unit ={
+    if(terminalInfo != -1){
+      res += ((deep, terminalInfo))
     }
     children.foreach(_.output(deep+1, res))
   }
