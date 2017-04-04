@@ -1,6 +1,6 @@
 name := "SparkGST"
 
-version := "1.1"
+version := "1.2"
 
 scalaVersion := "2.10.4"
 

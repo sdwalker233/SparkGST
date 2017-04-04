@@ -15,7 +15,8 @@ object Main {
     conf.registerKryoClasses(Array(
       classOf[GST.SuffixNode],
       classOf[scala.collection.mutable.ArrayBuffer[SuffixNode]],
-      classOf[scala.Array[(Int, Int)]]
+      classOf[scala.Array[(Int, Int)]],
+      classOf[Map[Int, Boolean]]
     ))
 
     val sc = new SparkContext(conf)
@@ -58,13 +59,41 @@ object Main {
     val bcText = sc.broadcast(S.collect())
     val charNum = bcText.value.length
 
-    /** Construct the Generalized Suffix Tree
-      * First filter the suffixes starting with terminal character
-      * Then map the suffixes to a link(root to this suffix, also a tree) with key of the first characters
-      * Finally reduce by key, combine the trees
-      * */
-    val SuffixTree = sc.parallelize(0 until charNum - 1, sumCores * taskMul)
-      .filter(i => bcText.value(i)._1 > 0)
+    val indexRDD = sc.parallelize(0 until charNum - 1, sumCores * taskMul).filter(bcText.value(_)._1 > 0)
+    indexRDD.persist()
+
+    val prefixRDD = indexRDD.map { i =>
+      (bcText.value(i)._1, Set(bcText.value(i + 1)._1))
+    }.reduceByKey(_ ++ _)
+    val splitAtFirst = prefixRDD.collect().toMap.mapValues(_.size > 1).map(identity)
+    //splitAtFirst.foreach(println(_))
+
+    val charSet = Array(' ','a','e','i','o','t')
+    val resRDD1 = (0 until charNum - 1).filter(bcText.value(_)._1 > 0)
+      .filter(i => splitAtFirst(bcText.value(i)._1) && charSet.contains(bcText.value(i)._1.toChar))
+      .groupBy(bcText.value(_)._1)
+      .map { case (_, value) =>
+        val SuffixTree = sc.parallelize(value, sumCores).map { i =>
+          val root = new SuffixNode(-charNum, -1, -1, bcText)
+          val node = new SuffixNode(bcText.value(i + 1)._1, i + 1, charNum - 1, bcText)
+          node.terminalInfo = bcText.value(i)._2
+          root.children += node
+          (bcText.value(i + 1)._1, root)
+        }.reduceByKey(_.combineSuffixTree(_))
+        val resRDD = SuffixTree.flatMap { case (_, root) =>
+          val resultOfSubTree = new ArrayBuffer[(Int, Int)]()
+          root.output(1, resultOfSubTree)
+          resultOfSubTree
+        }.map { case (deep, terminalInfo) =>
+          //Extract terminalInfo:Int to (fileId, terminalPosition)
+          val fileId = terminalInfo / max_len
+          val terminalPosition = terminalInfo % max_len
+          deep + " " + bcFilename.value(fileId) + ":" + terminalPosition
+        }
+        resRDD
+      }.reduce(_ ++ _).coalesce(sumCores * taskMul)
+
+    val SuffixTree = indexRDD.filter(i => !(splitAtFirst(bcText.value(i)._1) && charSet.contains(bcText.value(i)._1.toChar)))
       .map { i =>
         val root = new SuffixNode(-charNum, -1, -1, bcText)
         val node = new SuffixNode(bcText.value(i)._1, i, charNum - 1, bcText)
@@ -74,7 +103,7 @@ object Main {
       }.reduceByKey(partitioner, _.combineSuffixTree(_))
 
     //Get all the terminal characters of suffix trees by key(start character)
-    val resRDD = SuffixTree.flatMap { case (_, root) =>
+    val resRDD2 = SuffixTree.flatMap { case (_, root) =>
       val resultOfSubTree = new ArrayBuffer[(Int, Int)]()
       root.output(0, resultOfSubTree)
       resultOfSubTree
@@ -86,6 +115,7 @@ object Main {
     }
 
     //Output the result
-    resRDD.saveAsTextFile(outputPath)
+    val resRDD = resRDD1 ++ resRDD2
+    resRDD.coalesce(1).saveAsTextFile(outputPath)
   }
 }
