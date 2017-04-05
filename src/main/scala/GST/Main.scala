@@ -60,52 +60,35 @@ object Main {
     val charNum = bcText.value.length
 
     val indexRDD = sc.parallelize(0 until charNum - 1, sumCores * taskMul).filter(bcText.value(_)._1 > 0)
-    indexRDD.persist()
 
     val prefixRDD = indexRDD.map { i =>
       (bcText.value(i)._1, Set(bcText.value(i + 1)._1))
     }.reduceByKey(_ ++ _)
-    val splitAtFirst = prefixRDD.collect().toMap.mapValues(_.size > 1).map(identity)
+    .mapValues(_.size > 1)
+    val splitAtFirst = prefixRDD.collect().toMap
     //splitAtFirst.foreach(println(_))
 
-    val charSet = Array(' ','a','e','i','o','t')
-    val resRDD1 = (0 until charNum - 1).filter(bcText.value(_)._1 > 0)
-      .filter(i => splitAtFirst(bcText.value(i)._1) && charSet.contains(bcText.value(i)._1.toChar))
-      .groupBy(bcText.value(_)._1)
-      .map { case (_, value) =>
-        val SuffixTree = sc.parallelize(value, sumCores).map { i =>
-          val root = new SuffixNode(-charNum, -1, -1, bcText)
-          val node = new SuffixNode(bcText.value(i + 1)._1, i + 1, charNum - 1, bcText)
-          node.terminalInfo = bcText.value(i)._2
-          root.children += node
-          (bcText.value(i + 1)._1, root)
-        }.reduceByKey(_.combineSuffixTree(_))
-        val resRDD = SuffixTree.flatMap { case (_, root) =>
-          val resultOfSubTree = new ArrayBuffer[(Int, Int)]()
-          root.output(1, resultOfSubTree)
-          resultOfSubTree
-        }.map { case (deep, terminalInfo) =>
-          //Extract terminalInfo:Int to (fileId, terminalPosition)
-          val fileId = terminalInfo / max_len
-          val terminalPosition = terminalInfo % max_len
-          deep + " " + bcFilename.value(fileId) + ":" + terminalPosition
-        }
-        resRDD
-      }.reduce(_ ++ _).coalesce(sumCores * taskMul)
-
-    val SuffixTree = indexRDD.filter(i => !(splitAtFirst(bcText.value(i)._1) && charSet.contains(bcText.value(i)._1.toChar)))
+    val SuffixTree = sc.parallelize(0 until charNum - 1, sumCores * taskMul).filter(bcText.value(_)._1 > 0)
       .map { i =>
         val root = new SuffixNode(-charNum, -1, -1, bcText)
-        val node = new SuffixNode(bcText.value(i)._1, i, charNum - 1, bcText)
-        node.terminalInfo = bcText.value(i)._2
-        root.children += node
-        (bcText.value(i)._1, root)
+        if(splitAtFirst(bcText.value(i)._1)){
+          val node = new SuffixNode(bcText.value(i+1)._1, i+1, charNum - 1, bcText)
+          node.terminalInfo = bcText.value(i)._2
+          root.children += node
+          (bcText.value(i)._1*128 + bcText.value(i+1)._1, root)
+        }
+        else{
+          val node = new SuffixNode(bcText.value(i)._1, i, charNum - 1, bcText)
+          node.terminalInfo = bcText.value(i)._2
+          root.children += node
+          (bcText.value(i)._1, root)
+        }
       }.reduceByKey(partitioner, _.combineSuffixTree(_))
 
     //Get all the terminal characters of suffix trees by key(start character)
-    val resRDD2 = SuffixTree.flatMap { case (_, root) =>
+    val resRDD = SuffixTree.flatMap { case (key, root) =>
       val resultOfSubTree = new ArrayBuffer[(Int, Int)]()
-      root.output(0, resultOfSubTree)
+      root.output(if(key>128) 1 else 0, resultOfSubTree)
       resultOfSubTree
     }.map { case (deep, terminalInfo) =>
       //Extract terminalInfo:Int to (fileId, terminalPosition)
@@ -115,7 +98,6 @@ object Main {
     }
 
     //Output the result
-    val resRDD = resRDD1 ++ resRDD2
-    resRDD.coalesce(1).saveAsTextFile(outputPath)
+    resRDD.saveAsTextFile(outputPath)
   }
 }
