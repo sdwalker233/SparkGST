@@ -3,10 +3,11 @@ package GST
 import scala.util.control.Breaks._
 import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.broadcast.Broadcast
+import GST.Main.get1
 
 class SuffixNode (var startChar: Int,
                   var start: Int, var end: Int,
-                  val bcText: Broadcast[Array[(Int, Int)]]
+                  val bcText: Broadcast[Array[Long]]
                  ) extends java.io.Serializable{
   var children = new ArrayBuffer[SuffixNode]()
   var terminalInfo: Int = -1
@@ -17,7 +18,7 @@ class SuffixNode (var startChar: Int,
 
   //Get the first character of the node
   def calStartChar(): Int ={
-    startChar = bcText.value(start)._1
+    startChar = get1(bcText.value(start))
     startChar
   }
 
@@ -25,7 +26,7 @@ class SuffixNode (var startChar: Int,
   def compareSuffix(link:SuffixNode): Int = {
     val Len = if(len < link.len) len() else link.len()
     for(i <- 1 to Len) {
-      if(bcText.value(start+i-1)._1 != bcText.value(link.start+i-1)._1){
+      if(get1(bcText.value(start+i-1)) != get1(bcText.value(link.start+i-1))){
         return i-1
       }
     }

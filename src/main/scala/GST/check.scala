@@ -23,10 +23,15 @@ object check {
     val arr1 = readFile(filename1)
     val arr2 = readFile(filename2)
     var count = 0
-    val d = arr1.keys.toSet -- arr2.keys.toSet
-    d.foreach(println(_))
+    val d1 = arr1.keys.toSet -- arr2.keys.toSet
+    d1.foreach(println(_))
+    val d2 = arr2.keys.toSet -- arr1.keys.toSet
+    d2.foreach(println(_))
     arr1.foreach { pair =>
-      if (arr2(pair._1) != pair._2) count += 1
+      if (arr2(pair._1) != pair._2){
+        count += 1
+        println((pair._1,pair._2,arr2(pair._1)))
+      }
     }
     println(count)
   }
