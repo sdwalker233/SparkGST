@@ -12,13 +12,12 @@ sbt package
 ${SPARK_HOME/bin}/spark-submit \
 --master <spark cluster master uri> \
 --class GST.Main \
---executor-memory 20G \
---driver-memory 20G \
---total-executor-cores 48 \
+--executor-memory 15G \
+--driver-memory 15G \
+--executor-cores 4 \
 <jar file path> \
 hdfs://input path \
 hdfs://output path \
-hdfs://temp path
 ```
 
 ### Algorithm
