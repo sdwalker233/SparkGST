@@ -5,8 +5,8 @@ import org.apache.spark._
 
 object Main {
   def main(args: Array[String]) {
-    val TASK_MUL = 7
-    val MAX_PREFIX_LEN = 4
+    val TASK_MUL = if (args.length > 2) args(2).toInt else 7
+    val MAX_PREFIX_LEN = if (args.length > 3) args(3).toInt else 4
 
     val conf = new SparkConf()
       .setAppName("GST")

@@ -16,8 +16,10 @@ ${SPARK_HOME/bin}/spark-submit \
 --driver-memory 15G \
 --executor-cores 4 \
 <jar file path> \
-hdfs://input path \
-hdfs://output path \
+hdfs://input_path \
+hdfs://output_path \
+TASK_MUL(optional, default 7) \
+MAX_PREFIX_LEN(optional, default 4)
 ```
 
 ### Algorithm
